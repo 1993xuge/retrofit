@@ -34,6 +34,8 @@ public interface CallAdapter<R, T> {
    * <p>
    * Note: This is typically not the same type as the {@code returnType} provided to this call
    * adapter's factory.
+   *
+   * 返回 解析Http响应 后的数据类型。也就是 定义的网络请求方法的返回对象Call的泛型参数
    */
   Type responseType();
 
@@ -53,6 +55,8 @@ public interface CallAdapter<R, T> {
    *   });
    * }
    * </code></pre>
+   *
+   *
    */
   T adapt(Call<R> call);
 
@@ -64,9 +68,10 @@ public interface CallAdapter<R, T> {
     /**
      * Returns a call adapter for interface methods that return {@code returnType}, or null if it
      * cannot be handled by this factory.
+     * 根据网络请求接口的 返回值Call中的泛型参数类型、注解。得到实际需要的CallAdater对象
      */
     public abstract @Nullable CallAdapter<?, ?> get(Type returnType, Annotation[] annotations,
-        Retrofit retrofit);
+                                                    Retrofit retrofit);
 
     /**
      * Extract the upper bound of the generic parameter at {@code index} from {@code type}. For
@@ -79,6 +84,9 @@ public interface CallAdapter<R, T> {
     /**
      * Extract the raw class type from {@code type}. For example, the type representing
      * {@code List<? extends Runnable>} returns {@code List.class}.
+     *
+     *
+     *
      */
     protected static Class<?> getRawType(Type type) {
       return Utils.getRawType(type);
