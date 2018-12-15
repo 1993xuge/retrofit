@@ -70,6 +70,8 @@ public final class Retrofit {
 
   /**
    * 它是请求网络的OkHttp的工厂，用于生产OkHttpClient的工厂
+   * 在OkHttp中，Http请求被抽象为OkHttp3.Call类，它表示一个已经准备好，可以随时执行的Http请求。
+   * 而OkHttpClient 正是用来创建创建Call对象的，通过 OkHttpClient的newCall(Request request)方法
    */
   final okhttp3.Call.Factory callFactory;
 
@@ -79,8 +81,9 @@ public final class Retrofit {
   final HttpUrl baseUrl;
 
   /**
-   * 数据转换器工厂集合。
-   * 数据转换器就是对请求网络之后的得到的Response进行转换，转换成能够使用的Java对象。
+   * Converter工厂集合。
+   *
+   * 数据转换器（Converter）：负责把服务器返回的数据（JSON、XML、PB、二进制、其他格式，由ResponseBody封装）转化为T类型的对象。
    * 数据转换器工厂 ： 是用来生产 数据转换器的。
    * <p>
    * 这个集合就是用来 存放 数据转换器工厂的集合
@@ -88,9 +91,12 @@ public final class Retrofit {
   final List<Converter.Factory> converterFactories;
 
   /**
-   * 网络请求适配器的工厂集合。
+   * CallAdapter的工厂集合。
    * <p>
-   * 网络请求适配器：就是将call对象转换成其他类型。
+   * CallAdapter：负责把Retrofit中的Call转换成另一种类型T，这个过程会发送Http请求，
+   * 获取到服务器返回的数据（通过OkHttp实现），并把数据转换成声明的T类型（通过Converter<F, T> 实现）
+   *
+   * 注意：把Retrofit中的Call与OkHttp中的Call区分开来，Retrofit中的Call表示的是对一个Retrofit方法的调用
    */
   final List<CallAdapter.Factory> callAdapterFactories;
 
@@ -164,10 +170,15 @@ public final class Retrofit {
    */
   @SuppressWarnings("unchecked") // Single-interface proxy creation guarded by parameter safety.
   public <T> T create(final Class<T> service) {
+    // 1、校验是否为接口，且不能继承其他接口
     Utils.validateServiceInterface(service);
+
+    // 2、是否需要提前解析接口方法
     if (validateEagerly) {
       eagerlyValidateMethods(service);
     }
+
+    // 3、动态代理模式，返回一个 Service接口的代理对象
     return (T) Proxy.newProxyInstance(service.getClassLoader(), new Class<?>[]{service},
             new InvocationHandler() {
               private final Platform platform = Platform.get();
@@ -178,11 +189,15 @@ public final class Retrofit {
                       throws Throwable {
                 // If the method is a method from Object then defer to normal invocation.
                 if (method.getDeclaringClass() == Object.class) {
+                  // 如果是Object的方法，那么直接调用，例如 equals，toString
                   return method.invoke(this, args);
                 }
                 if (platform.isDefaultMethod(method)) {
+                  // 如果是Java8中的默认方法，直接调用
                   return platform.invokeDefaultMethod(method, service, proxy, args);
                 }
+
+                // 将接口中的方法构造为 ServiceMethod
                 return loadServiceMethod(method).invoke(args != null ? args : emptyArgs);
               }
             });
@@ -198,13 +213,17 @@ public final class Retrofit {
   }
 
   ServiceMethod<?> loadServiceMethod(Method method) {
+    // 从 serviceMethodCache中 获取，如果获取成功，则直接返回
     ServiceMethod<?> result = serviceMethodCache.get(method);
     if (result != null) return result;
 
     synchronized (serviceMethodCache) {
       result = serviceMethodCache.get(method);
       if (result == null) {
+        // 通过 ServiceMethod 的 parseAnnotations方法，解析定义的方法的注解信息，并生成ServiceMethod对象
         result = ServiceMethod.parseAnnotations(this, method);
+
+        // 将 生成的 ServiceMethod对象 保存在 serviceMethodCache中
         serviceMethodCache.put(method, result);
       }
     }
@@ -433,7 +452,8 @@ public final class Retrofit {
    */
   public static final class Builder {
     /**
-     * Platform：代表了Retrofit所适配的平台
+     * Platform：代表了Retrofit所适配的平台。
+     * Retrofit中支持 Android、java8 和 默认平台
      */
     private final Platform platform;
     private @Nullable
